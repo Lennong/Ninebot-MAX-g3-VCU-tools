@@ -12,62 +12,20 @@ import (
 )
 
 const (
-	prefix       = "1CG"
-	skipSerial   = "1CGC0000000001"
-	serialLength = 14
-	offset1      = 0x0001F0C4
-	offset2      = 0x0001F4C4
+	prefix          = "1CG"
+	skipSerial      = "1CGC0000000001"
+	serialLength    = 14
+	speedOffset1    = 0x0001F0C4
+	speedOffset2    = 0x0001F4C4
+	secretKeyOffset = 0x1F5B4
+	secretKeyLength = 12
 )
 
-const secretKeyOffset = 0x1F5B4
-const secretKeyLength = 12
-
-func patchSerials(content []byte, newSerial string) (int, error) {
-	count := 0
-	for i := 0; i <= len(content)-serialLength; i++ {
-		if bytes.Equal(content[i:i+3], []byte(prefix)) {
-			sn := content[i : i+serialLength]
-			if bytes.Equal(sn, []byte(skipSerial)) {
-				i += serialLength - 1
-				continue
-			}
-			copy(content[i:i+serialLength], []byte(newSerial))
-			count++
-			i += serialLength - 1
-		}
-	}
-	if count == 0 {
-		return 0, fmt.Errorf("no serials replaced")
-	}
-	return count, nil
-}
-
-func findFirstBinFile() (string, error) {
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		return "", err
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".bin") {
-			return entry.Name(), nil
-		}
-	}
-	return "", fmt.Errorf("no .bin file found in current directory")
-}
-
-func writeUint16At(buf []byte, offset int, value uint16) error {
-	if offset+2 > len(buf) {
-		return fmt.Errorf("offset 0x%X is out of bounds", offset)
-	}
-	binary.LittleEndian.PutUint16(buf[offset:], value)
-	return nil
-}
-
-func readUint16At(buf []byte, offset int) (uint16, error) {
-	if offset+2 > len(buf) {
-		return 0, fmt.Errorf("offset 0x%X is out of bounds", offset)
-	}
-	return binary.LittleEndian.Uint16(buf[offset : offset+2]), nil
+var speedOffsets = []int{
+	0x1F08D,
+	0x1F091,
+	0x1F48D,
+	0x1F491,
 }
 
 func main() {
@@ -113,7 +71,7 @@ func main() {
 				i += serialLength - 1
 				continue
 			}
-			fmt.Printf("→ [%06X]: %s\n", i, string(sn))
+			fmt.Printf("-> %s\n", string(sn))
 			i += serialLength - 1
 		}
 	}
@@ -126,10 +84,10 @@ func main() {
 		changeSn(reader, data)
 	}
 
-	old1, _ := readUint16At(data, offset1)
-	old2, _ := readUint16At(data, offset2)
-	fmt.Printf("🚗 Current mileage at 0x%X: %d (%.1f km, 0x%04X)\n", offset1, old1, float64(old1)/10.0, old1)
-	fmt.Printf("🚗 Current mileage at 0x%X: %d (%.1f km, 0x%04X)\n", offset2, old2, float64(old2)/10.0, old2)
+	old1, _ := readUint16At(data, speedOffset1)
+	old2, _ := readUint16At(data, speedOffset2)
+	fmt.Printf("🚗 Current mileage A: %d (%.1f km)\n", old1, float64(old1)/10.0)
+	fmt.Printf("🚗 Current mileage B: %d (%.1f km)\n", old2, float64(old2)/10.0)
 
 	fmt.Print("Do you want to update mileage? (Y/N): ")
 	answer, _ = reader.ReadString('\n')
@@ -137,6 +95,42 @@ func main() {
 
 	if answer == "y" {
 		changeMileage(reader, data)
+	}
+
+	fmt.Println("🚀 Current speed values:")
+	for _, offset := range speedOffsets {
+		val, err := readByteAt(data, offset)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "❌ Failed to read speed value\n")
+			continue
+		}
+		fmt.Printf("-> %d (0x%02X)\n", val, val)
+	}
+
+	fmt.Print("Do you want to update speed? (Y/N): ")
+	answer, _ = reader.ReadString('\n')
+	answer = strings.ToLower(strings.TrimSpace(answer))
+
+	if answer == "y" {
+		fmt.Print("Enter new speed (1–99): ")
+		speedStr, _ := reader.ReadString('\n')
+		speedStr = strings.TrimSpace(speedStr)
+
+		speedVal, err := strconv.Atoi(speedStr)
+		if err != nil || speedVal < 1 || speedVal > 99 {
+			fmt.Fprintln(os.Stderr, "❌ Invalid speed value (must be 1–99)")
+			os.Exit(1)
+		}
+
+		for _, offset := range speedOffsets {
+			err := writeByteAt(data, offset, byte(speedVal))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "❌ Failed to write speed value\n")
+				os.Exit(1)
+			}
+		}
+
+		fmt.Printf("✅ Speed 0x%02X written to all offsets\n", speedVal)
 	}
 
 	oldKey := data[secretKeyOffset : secretKeyOffset+secretKeyLength]
@@ -156,7 +150,6 @@ func main() {
 		transferKey(reader, data)
 	}
 
-	// ✍️ Save everything in the end
 	outFile := fileName + ".patched.bin"
 	err = os.WriteFile(outFile, data, 0644)
 	if err != nil {
@@ -164,7 +157,69 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println("✅ All changes written to:", outFile)
+}
 
+func readByteAt(buf []byte, offset int) (byte, error) {
+	if offset >= len(buf) {
+		return 0, fmt.Errorf("offset out of bounds")
+	}
+	return buf[offset], nil
+}
+
+func writeByteAt(buf []byte, offset int, value byte) error {
+	if offset >= len(buf) {
+		return fmt.Errorf("offset out of bounds")
+	}
+	buf[offset] = value
+	return nil
+}
+
+func patchSerials(content []byte, newSerial string) (int, error) {
+	count := 0
+	for i := 0; i <= len(content)-serialLength; i++ {
+		if bytes.Equal(content[i:i+3], []byte(prefix)) {
+			sn := content[i : i+serialLength]
+			if bytes.Equal(sn, []byte(skipSerial)) {
+				i += serialLength - 1
+				continue
+			}
+			copy(content[i:i+serialLength], []byte(newSerial))
+			count++
+			i += serialLength - 1
+		}
+	}
+	if count == 0 {
+		return 0, fmt.Errorf("no serials replaced")
+	}
+	return count, nil
+}
+
+func findFirstBinFile() (string, error) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".bin") {
+			return entry.Name(), nil
+		}
+	}
+	return "", fmt.Errorf("no .bin file found in current directory")
+}
+
+func writeUint16At(buf []byte, offset int, value uint16) error {
+	if offset+2 > len(buf) {
+		return fmt.Errorf("offset out of bounds")
+	}
+	binary.LittleEndian.PutUint16(buf[offset:], value)
+	return nil
+}
+
+func readUint16At(buf []byte, offset int) (uint16, error) {
+	if offset+2 > len(buf) {
+		return 0, fmt.Errorf("offset out of bounds")
+	}
+	return binary.LittleEndian.Uint16(buf[offset : offset+2]), nil
 }
 
 func transferKey(reader *bufio.Reader, data []byte) {
@@ -207,16 +262,15 @@ func changeMileage(reader *bufio.Reader, data []byte) {
 		fmt.Fprintln(os.Stderr, "❌ Invalid mileage value (must be 0–65535)")
 		os.Exit(1)
 	}
-	// Write uint16 to both offsets
-	if err := writeUint16At(data, offset1, uint16(mileageVal)); err != nil {
-		fmt.Fprintln(os.Stderr, "❌ Error writing mileage:", err)
+	if err := writeUint16At(data, speedOffset1, uint16(mileageVal)); err != nil {
+		fmt.Fprintln(os.Stderr, "❌ Error writing mileage")
 		os.Exit(1)
 	}
-	if err := writeUint16At(data, offset2, uint16(mileageVal)); err != nil {
-		fmt.Fprintln(os.Stderr, "❌ Error writing mileage:", err)
+	if err := writeUint16At(data, speedOffset2, uint16(mileageVal)); err != nil {
+		fmt.Fprintln(os.Stderr, "❌ Error writing mileage")
 		os.Exit(1)
 	}
-	fmt.Printf("✅ Mileage 0x%04X written to 0x%X and 0x%X\n", mileageVal, offset1, offset2)
+	fmt.Printf("✅ Mileage 0x%04X written to both locations\n", mileageVal)
 }
 
 func changeSn(reader *bufio.Reader, data []byte) {
