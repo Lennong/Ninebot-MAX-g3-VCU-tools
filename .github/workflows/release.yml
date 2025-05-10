@@ -3,7 +3,7 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*' # Trigger only on version tags like v1.0.0
+      - 'v*'
 
 jobs:
   build:
@@ -12,8 +12,6 @@ jobs:
 
     strategy:
       matrix:
-        goos: [windows, linux, darwin]
-        goarch: [386, 386, arm64]
         include:
           - goos: windows
             goarch: 386
@@ -40,7 +38,7 @@ jobs:
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 \
           go build -o dist/app-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} .
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: binaries
