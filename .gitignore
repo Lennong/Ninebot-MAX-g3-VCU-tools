@@ -1,0 +1,6 @@
+.DS_Store
+.idea/*
+MEMORY_G3.bin
+MEMORY_G3.bin.patched.bin
+build/*
+change_sn
