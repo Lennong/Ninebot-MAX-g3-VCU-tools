@@ -94,27 +94,29 @@ func main() {
 	}
 
 	//verify length
-	if len(data) < 0x0001FFFF {
+	if len(data) != 0x20000 {
 		_, _ = fmt.Fprintln(os.Stderr, "❌ File corrupted")
 		os.Exit(1)
 	}
-	fmt.Printf("Len: %d", len(data))
+	fmt.Printf("✅ Len correct: %d\n", len(data))
 
 	//verif header
 	expected, err := hex.DecodeString(header[:len(header)-(len(header)%2)])
 	if err != nil {
-		panic("❌ invalid header signature: " + err.Error())
+		panic("\n❌ invalid header signature. File corrupted: " + err.Error())
+		os.Exit(1)
 	}
 
-	valid, err := isDumpHeaderValid("MEMORY_G3.bin", expected)
+	valid, err := isDumpHeaderValid(fileName, expected)
 	if err != nil {
-		fmt.Println("❌ error:", err)
-		return
+		fmt.Println("\n❌ error:", err)
+		os.Exit(1)
 	}
 	if valid {
-		fmt.Println("✅ VALID header signature. Dump seems to be correct")
+		fmt.Println("\n✅ VALID header signature. Dump seems to be correct")
 	} else {
-		fmt.Println("❌ invalid header signature")
+		fmt.Println("\n❌ invalid header signature. File corrupted")
+		os.Exit(1)
 	}
 
 	fmt.Println("\nFound serial numbers:")
