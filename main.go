@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"os"
 	"strconv"
@@ -51,6 +52,9 @@ func isDumpHeaderValid(filePath string, expected []byte) (bool, error) {
 }
 
 func main() {
+	verify := flag.Bool("v", false, "Run verify mode")
+	flag.Parse()
+
 	reader := bufio.NewReader(os.Stdin)
 	var fileName string
 	figure.NewFigure("NINEBOT", "", true).Print()
@@ -130,6 +134,12 @@ func main() {
 			fmt.Printf("-> %s\n", string(sn))
 			i += serialLength - 1
 		}
+	}
+
+	if *verify {
+		fmt.Println("\n✅ Verify done. No changes made. Press any key to exit")
+		_, _ = reader.ReadString('\n')
+		os.Exit(0)
 	}
 
 	fmt.Print("Do you want to update S/N? (Y/N): ")
