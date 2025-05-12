@@ -53,6 +53,7 @@ func isDumpHeaderValid(filePath string, expected []byte) (bool, error) {
 
 func main() {
 	verify := flag.Bool("v", false, "Run verify mode")
+	keyC := flag.Bool("k", false, "Run key check mode")
 	flag.Parse()
 
 	reader := bufio.NewReader(os.Stdin)
@@ -69,6 +70,12 @@ func main() {
 	err := os.Remove("MEMORY_G3.bin.patched.bin")
 	if err == nil {
 		fmt.Println("✅ File deleted successfully.")
+	}
+
+	if *keyC {
+		printKeys()
+		_, _ = reader.ReadString('\n')
+		os.Exit(0)
 	}
 
 	defaultFile, err := findFirstBinFile()
@@ -199,6 +206,40 @@ func main() {
 		fmt.Printf("✅ Speed 0x%02X written to all offsets\n", speedVal)
 	}
 
+	keyWork(data, reader)
+
+	outFile := fileName + ".patched.bin"
+	err = os.WriteFile(outFile, data, 0644)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "❌ Error writing output file:", err)
+		os.Exit(1)
+	}
+	fmt.Println("✅ All changes written to:", outFile)
+}
+
+func printKeys() {
+	binFiles := getBinFiles(".")
+	for _, f := range binFiles {
+		d, err := os.ReadFile(f)
+		if err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, "❌ Error reading file:", err)
+			os.Exit(1)
+		}
+		fmt.Printf("\n\n%s", f)
+		oldKey := d[secretKeyOffset : secretKeyOffset+secretKeyLength]
+
+		fmt.Print("\n🔑 Old key (hex): ")
+		for _, b := range oldKey {
+			fmt.Printf("%02X ", b)
+		}
+
+		fmt.Printf("\n📦 Old key (base64): %s", base64.StdEncoding.EncodeToString(oldKey))
+	}
+
+	fmt.Println("\n✅ Press any key to exit")
+}
+
+func keyWork(data []byte, reader *bufio.Reader) {
 	oldKey := data[secretKeyOffset : secretKeyOffset+secretKeyLength]
 
 	fmt.Print("🔑 Old key (hex): ")
@@ -215,14 +256,6 @@ func main() {
 	if transfer == "y" {
 		transferKey(data)
 	}
-
-	outFile := fileName + ".patched.bin"
-	err = os.WriteFile(outFile, data, 0644)
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, "❌ Error writing output file:", err)
-		os.Exit(1)
-	}
-	fmt.Println("✅ All changes written to:", outFile)
 }
 
 func readFileName(promt, defaultFile string) (string, error) {
@@ -391,7 +424,7 @@ func changeMileage(reader *bufio.Reader, data []byte) {
 func changeSn(reader *bufio.Reader, data []byte) {
 	fmt.Print("Enter new serial number (must be 14 characters): ")
 	newSerial, _ := reader.ReadString('\n')
-	newSerial = strings.TrimSpace(newSerial)
+	newSerial = strings.ToUpper(strings.TrimSpace(newSerial))
 	if len(newSerial) != serialLength {
 		_, _ = fmt.Fprintln(os.Stderr, "❌ Invalid serial number format")
 		os.Exit(1)
