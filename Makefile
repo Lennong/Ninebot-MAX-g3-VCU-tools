@@ -14,7 +14,7 @@ linux:
 
 macos:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)fix_vcu_arm64 $(SRC)
+	GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/fix_vcu_arm64 $(SRC)
 
 clean:
 	rm -rf $(BUILD_DIR)
