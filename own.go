@@ -55,9 +55,11 @@ func editOwn(verify *bool, reader *bufio.Reader) {
 	err = os.WriteFile(outFile, data, 0644)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "❌ Error writing output file:", err)
+		_, _ = reader.ReadString('\n')
 		os.Exit(1)
 	}
 	fmt.Println("✅ All changes written to:", outFile)
+	_, _ = reader.ReadString('\n')
 }
 
 func verifyFile(data []byte, err error, fileName string) {

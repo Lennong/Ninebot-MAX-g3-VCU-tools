@@ -63,4 +63,15 @@ func editCustom(reader *bufio.Reader) {
 
 	SetSpeed(data, speedStr, reader)
 	SetUidKey(data, reader)
+
+	outFile := fileName + ".patched.bin"
+	err = os.WriteFile(outFile, data, 0644)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "❌ Error writing output file:", err)
+		_, _ = reader.ReadString('\n')
+		os.Exit(1)
+	}
+
+	fmt.Println("✅ All changes written to:", outFile)
+	_, _ = reader.ReadString('\n')
 }
