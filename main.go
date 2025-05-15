@@ -40,9 +40,9 @@ func main() {
 	figure.NewFigure("VCU TOOLS", "", true).Print()
 
 	fmt.Printf("\nNinebot MAX G3 VCU tools")
-	fmt.Printf("\nTested with 1.4.8, 1.4.5 and 1.5.5 firmwares only")
+	fmt.Printf("\nTested with 1.4.8, 1.4.5, 1.5.5 and 1.5.6 firmwares only")
 	fmt.Printf("\n!!! You perform any actions at your own risk !!!")
-	fmt.Printf("\n\n\n\n\n\n")
+	fmt.Printf("\n\n\n\n")
 
 	err := os.Remove("MEMORY_G3.bin.patched.bin")
 	if err == nil {
